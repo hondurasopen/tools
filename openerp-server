@@ -1,0 +1,139 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:        openerp-server
+# Required-Start:    $syslog
+# Required-Stop:    $syslog
+# Should-Start:        $network
+# Should-Stop:        $network
+# Default-Start:    2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:    Enterprise Resource Management software
+# Description:        Open ERP is a complete ERP and CRM software.
+### END INIT INFO
+ 
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+ 
+NAME=openerp-server
+DESC=openerp-server
+SERVEREXE=openerp-server
+
+LOG=TRUE
+# path al directorio de instancias de OpenERP
+OERPPATH=/home/administrator/BE
+ 
+# Default OpenERP server python executable
+DAEMON=/home/administrator/BE/openerp-server
+ 
+# Default server config file
+CONFIGFILE=/etc/openerp_producc.conf
+ 
+# Specify the user name (Default: openerp).
+USER=administrator
+ 
+# Assign order (start, stop, restart|force-reload, status)to $ORDER
+if [ -z $1 ]; then
+   N=/etc/init.d/${NAME}
+   echo "Usage: ${NAME} {start|stop|restart|force-reload|status} [openerp-options ]" >&2
+   exit 1
+fi
+ 
+ORDER="${1}"
+shift
+ 
+# Additional options that are passed to the Daemon.
+PARAM=""
+if [ $# -ge 1 ]; then
+    while [ ! -z "${1}" ]; do
+        PARAM="${PARAM} ${1}"
+        shift
+    done
+fi
+ 
+test -x ${DAEMON} || exit 0
+ 
+set -e
+ 
+start_daemon () {
+    #Comprobamos que el usuario que esta ejecutando el comando es root.
+    if [ $(whoami) != "root" ]; then
+        echo "Por favor, ejecuta el comando como superusuario (sudo)"
+        exit 1
+    fi
+ 
+    if [ -f ${PIDFILE} ]; then
+        echo "${NAME} already running: `cat ${PIDFILE}`"
+        return
+    fi
+ 
+    echo -n "Starting ${DESC}: "
+    if [ $LOG = "TRUE" ] ; then
+        echo "\nstart-stop-daemon --start --pidfile ${PIDFILE} --chuid ${USER} --make-pidfile --exec ${DAEMON} "
+        start-stop-daemon --start --oknodo --background --user ${USER} --chuid ${USER} --name ${NAME} --pidfile ${PIDFILE} --make-pidfile --startas ${DAEMON} -- ${DAEMON_OPTS}
+    else
+        start-stop-daemon --start --oknodo --background --user ${USER} --chuid ${USER} --name ${NAME} --pidfile ${PIDFILE} --make-pidfile --startas ${DAEMON} -- ${DAEMON_OPTS}
+    fi
+ 
+    echo "${NAME}: `cat ${PIDFILE}`: running."
+}
+ 
+stop_daemon () {
+    #Comprobamos que el usuario es root.
+    if [ $(whoami) != "root" ]; then
+        echo "Por favor, ejecuta el comando como superusuario (sudo)"
+        exit 1
+    fi
+ 
+    if [ ! -f ${PIDFILE} ]; then
+        echo "${NAME}: not running"
+        return
+    fi
+ 
+    echo -n "Stopping ${DESC}: "
+ 
+    start-stop-daemon --stop --oknodo --pidfile ${PIDFILE} --retry 5
+ 
+    echo "${NAME}: `cat ${PIDFILE}`: stopped."
+    rm -f ${PIDFILE} # remove pidfile
+}
+ 
+status_daemon(){
+    echo -n "Checking ${DESC} ${SERVER}: "
+    if [ -f ${PIDFILE} ]; then
+        echo "`cat ${PIDFILE}` running."
+    else
+        echo "stopped."
+    fi
+}
+ 
+case "${ORDER}" in
+    start)
+        PIDFILE="/var/run/${NAME}.pid"
+        DAEMON_OPTS="--config=${CONFIGFILE} ${PARAM}"
+        start_daemon
+    ;;
+ 
+    stop)
+        PIDFILE="/var/run/${NAME}.pid"
+        DAEMON_OPTS="--config=${CONFIGFILE} ${PARAM}"
+        stop_daemon
+    ;;
+ 
+    restart|force-reload)
+         PIDFILE="/var/run/${NAME}.pid"
+         DAEMON_OPTS="--config=${CONFIGFILE} ${PARAM}"
+         stop_daemon
+         start_daemon
+    ;;
+ 
+    status)
+        PIDFILE="/var/run/${NAME}.pid"
+        status_daemon
+    ;;
+ 
+    *)
+        N=/etc/init.d/${NAME}
+        echo "Usage: ${NAME} {start|stop|restart|force-reload|status} [openerp-options]" >&2
+        exit 1
+    ;;
+esac
+exit 0
